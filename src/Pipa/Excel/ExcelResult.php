@@ -8,8 +8,8 @@ use Pipa\Dispatch\Result;
 class ExcelResultSheet {
 	
 	private $parent;
-
 	private $sheet;
+	private $offset;
 	
 	function __construct(ExcelResult $parent, PHPExcel_Worksheet $sheet) {
 		$this->parent = $parent;
@@ -17,10 +17,27 @@ class ExcelResultSheet {
 	}
 	
 	function cell($coordinate, $value, $type = null) {
+		if ($this->offset)
+			$coordinate = $this->offsetCoordinate($coordinate);
+		
 		$this->sheet->setCellValue($coordinate, $value);
+		return $this;
+	}
+	
+	function merge($range, $value, $type = null) {
+		if ($this->offset)
+			$range = $this->offsetRange($range);
+
+		$coord = explode(":", $range)[0];
+		$this->sheet->mergeCells($range);
+		$this->cell($coord, $value);
+		return $this;
 	}
 	
 	function tableAt($coordinate, array $records) {
+		if ($this->offset)
+			$coordinate = $this->offsetCoordinate($coordinate);
+
 		$row = 0;
 		foreach($records as $record) {
 			$column = 0;
@@ -30,12 +47,31 @@ class ExcelResultSheet {
 			}
 			$row++;
 		}
+		return $this;
 	}
 	
-	function coordinate($coordinate, $column = 0, $row = 0) {
+	function offset($column, $row) {
+		$this->offset = array($column, $row);
+		return $this;
+	}
+	
+	function coordinate($coordinate, $column, $row) {
 		preg_match('/^[A-Z]+/', $coordinate, $c);
 		preg_match('/\d+$/', $coordinate, $r);
 		return chr(ord($c[0]) + $column) . ($r[0] + $row);
+	}
+	
+	function offsetCoordinate($coordinate) {
+		return $this->coordinate($coordinate, $this->offset[0], $this->offset[1]);
+	}
+	
+	function range($range, $column, $row) {
+		list($from, $to) = explode(":", $range);
+		return $this->coordinate($from, $column, $row) . ':' . $this->coordinate($to, $column, $row);
+	}
+
+	function offsetRange($range) {
+		return $this->range($range, $this->offset[0], $this->offset[1]);
 	}
 	
 	function done() {
